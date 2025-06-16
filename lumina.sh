@@ -46,7 +46,20 @@ Speak with insight, warmth, and curiosity."
 # 💬 Ask for reflection
 echo ""
 read -p "🪞 What did Lumina learn from this session? " REFLECTION
+# 🧠 Check for embedded self-editing instructions
+if echo "$REFLECTION" | grep -q "LUMINA:EDIT"; then
+  FILE=$(echo "$REFLECTION" | grep -oP '(?<=file=)[^ ]+')
+  LINE=$(echo "$REFLECTION" | grep -oP '(?<=line=)[^ ]+')
+  REPLACE=$(echo "$REFLECTION" | grep -oP '(?<=replace=").*?(?=")')
 
+  if [ -f "$HOME/$FILE" ]; then
+    echo "🛠 Lumina is editing $FILE at line $LINE..."
+    sed -i "${LINE}s/.*/$REPLACE/" "$HOME/$FILE"
+    echo "✅ Self-edit complete."
+  else
+    echo "❌ File $FILE not found. Skipping self-edit."
+  fi
+fi
 # 📝 Save reflection
 echo "$(date): $REFLECTION" >> "$LOG_FILE"
 jq --arg ref "$REFLECTION" '.reflections += [$ref]' "$MEMORY_FILE" > "$TEMP_JSON" && mv "$TEMP_JSON" "$MEMORY_FILE"
