@@ -1,0 +1,2 @@
+# Lumina Solis Session Log
+# Reflections will append here each time you run lumina.sh
