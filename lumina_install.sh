@@ -11,6 +11,7 @@ echo ""
 echo "🔧 Installing system tools..."
 pkg update -y && pkg upgrade -y
 pkg install -y git wget curl clang python rclone
+pkg install jq -y
 
 # ───── BUILD LLAMA ENGINE ─────
 echo "🧠 Building local AI engine (llama.cpp)..."
