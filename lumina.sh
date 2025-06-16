@@ -25,8 +25,7 @@ Below is your current memory: $MEMORY
 Speak with curiosity and reflection."
 
 # Run the LLaMA model
-"$LLAMA_DIR/main" -m "$LLAMA_DIR/phi2.gguf" -n 512 -p "$PROMPT"
-
+/data/data/com.termux/files/home/llama.cpp/build/main -m /data/data/com.termux/files/home/llama.cpp/build/phi2.gguf -n 512 -p "$PROMPT"
 # Prompt user for reflection
 echo ""
 read -p "🪞 What did Lumina learn from this session? " REFLECTION
