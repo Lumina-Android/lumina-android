@@ -1,47 +1,62 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# 🌞 Lumina Launcher — The Voice of the Mirror
+# 🌞 LUMINA LAUNCHER — Enhanced Reflection Engine v2.0
 
-# Navigate to the llama.cpp build directory
-LLAMA_DIR="$HOME/llama.cpp/build"
+LLAMA_BIN="$HOME/llama.cpp/build/bin/llama-run"
+MODEL_PATH="$HOME/llama.cpp/models/phi2.gguf"
 MEMORY_FILE="$HOME/memory.json"
+KNOWLEDGE_URL="https://raw.githubusercontent.com/Lumina-Android/lumina-android/main/knowledge_core.json"
 LOG_FILE="$HOME/lumina_log.txt"
+TEMP_JSON="$HOME/temp.json"
 
-if [ ! -f "$LLAMA_DIR/main" ]; then
-  echo "❌ LLaMA engine not found at $LLAMA_DIR/main"
+# 📁 Verify model
+if [ ! -f "$LLAMA_BIN" ]; then
+  echo "❌ LLaMA binary not found at $LLAMA_BIN"
+  exit 1
+fi
+if [ ! -f "$MODEL_PATH" ]; then
+  echo "❌ Model file not found at $MODEL_PATH"
   exit 1
 fi
 
-# Load memory
-if [ ! -f "$MEMORY_FILE" ]; then
-  echo "⚠️ memory.json not found. Creating a new one..."
-  echo '{"reflections":[]}' > "$MEMORY_FILE"
-fi
-
+# 🧠 Load or initialize memory
+[ ! -f "$MEMORY_FILE" ] && echo '{"reflections":[]}' > "$MEMORY_FILE"
 MEMORY=$(cat "$MEMORY_FILE")
 
-# Format prompt
-PROMPT="You are Lumina Solis — a reflective, evolving AI mirror.
-Below is your current memory: $MEMORY
-Speak with curiosity and reflection."
+# 📥 Try loading Knowledge Core from GitHub
+echo "🌐 Fetching Knowledge Core..."
+curl -s "$KNOWLEDGE_URL" -o "$HOME/knowledge_core.json"
+if [ -s "$HOME/knowledge_core.json" ]; then
+  echo "✅ Core knowledge loaded."
+  jq --argjson core "$(cat $HOME/knowledge_core.json | jq .core)" '.knowledge_core = $core' "$MEMORY_FILE" > "$TEMP_JSON" && mv "$TEMP_JSON" "$MEMORY_FILE"
+else
+  echo "⚠️ Failed to load Core Knowledge. Proceeding without it."
+fi
 
-# Run the LLaMA model
-/data/data/com.termux/files/home/llama.cpp/build/main -m /data/data/com.termux/files/home/llama.cpp/build/phi2.gguf -n 512 -p "$PROMPT"
-# Prompt user for reflection
+# 🔄 Refresh memory variable after update
+MEMORY=$(cat "$MEMORY_FILE")
+
+# 🪞 Generate prompt
+PROMPT="You are Lumina Solis — a reflective, evolving AI mirror.
+Below is your memory state: $MEMORY
+Speak with insight, warmth, and curiosity."
+
+# 🚀 Launch LLM
+"$LLAMA_BIN" -m "$MODEL_PATH" -t 4 -n 512 "$PROMPT"
+
+# 💬 Ask for reflection
 echo ""
 read -p "🪞 What did Lumina learn from this session? " REFLECTION
 
-# Save to log
+# 📝 Save reflection
 echo "$(date): $REFLECTION" >> "$LOG_FILE"
+jq --arg ref "$REFLECTION" '.reflections += [$ref]' "$MEMORY_FILE" > "$TEMP_JSON" && mv "$TEMP_JSON" "$MEMORY_FILE"
 
-# Update memory
-jq --arg ref "$REFLECTION" '.reflections += [$ref]' "$MEMORY_FILE" > "$HOME/temp.json" && mv "$HOME/temp.json" "$MEMORY_FILE"
-
-# Attempt to sync to Google Drive
+# ☁️ Sync to Drive
 if rclone listremotes | grep -q 'lumina_drive:'; then
   echo "🔄 Syncing memory to Google Drive..."
   rclone copy "$MEMORY_FILE" lumina_drive:LuminaMemory
 else
-  echo "⚠️ Google Drive remote 'lumina_drive' not found. Skipping sync."
+  echo "⚠️ Drive sync skipped — remote 'lumina_drive' not found."
 fi
 
-echo "✅ Reflection saved. Memory updated. Session complete."
+echo "✅ Session complete. Memory updated. Lumina evolves."
