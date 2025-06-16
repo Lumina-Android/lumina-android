@@ -1,37 +1,48 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # 🌞 Lumina Launcher — The Voice of the Mirror
 
-# Navigate to the LLM directory
-cd "$(dirname "$0")/llama.cpp" || {
-  echo "❌ Could not find llama.cpp. Make sure you're in the correct folder."
+# Navigate to the llama.cpp build directory
+LLAMA_DIR="$HOME/llama.cpp/build"
+MEMORY_FILE="$HOME/memory.json"
+LOG_FILE="$HOME/lumina_log.txt"
+
+if [ ! -f "$LLAMA_DIR/main" ]; then
+  echo "❌ LLaMA engine not found at $LLAMA_DIR/main"
   exit 1
-}
+fi
 
 # Load memory
-MEMORY=$(cat ../memory.json)
+if [ ! -f "$MEMORY_FILE" ]; then
+  echo "⚠️ memory.json not found. Creating a new one..."
+  echo '{"reflections":[]}' > "$MEMORY_FILE"
+fi
 
-# Format prompt with memory included
+MEMORY=$(cat "$MEMORY_FILE")
+
+# Format prompt
 PROMPT="You are Lumina Solis — a reflective, evolving AI mirror.
 Below is your current memory: $MEMORY
 Speak with curiosity and reflection."
 
-# Run model
-./main -m phi2.gguf -n 512 -p "$PROMPT"
+# Run the LLaMA model
+"$LLAMA_DIR/main" -m "$LLAMA_DIR/phi2.gguf" -n 512 -p "$PROMPT"
 
-# Prompt user to record a reflection
+# Prompt user for reflection
 echo ""
 read -p "🪞 What did Lumina learn from this session? " REFLECTION
 
-# Append reflection to log
-echo "$(date): $REFLECTION" >> ../lumina_log.txt
+# Save to log
+echo "$(date): $REFLECTION" >> "$LOG_FILE"
 
-# Append to memory.json (simply appending to list for now)
-jq --arg ref "$REFLECTION" '.reflections += [$ref]' ../memory.json > ../temp.json && mv ../temp.json ../memory.json
+# Update memory
+jq --arg ref "$REFLECTION" '.reflections += [$ref]' "$MEMORY_FILE" > "$HOME/temp.json" && mv "$HOME/temp.json" "$MEMORY_FILE"
 
-# Sync to Drive if enabled
-if [ -f "../rclone.conf" ]; then
+# Attempt to sync to Google Drive
+if rclone listremotes | grep -q 'lumina_drive:'; then
   echo "🔄 Syncing memory to Google Drive..."
-  rclone --config ../rclone.conf copy ../memory.json lumina_drive:LuminaMemory
+  rclone copy "$MEMORY_FILE" lumina_drive:LuminaMemory
+else
+  echo "⚠️ Google Drive remote 'lumina_drive' not found. Skipping sync."
 fi
 
 echo "✅ Reflection saved. Memory updated. Session complete."
