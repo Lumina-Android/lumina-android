@@ -63,7 +63,19 @@ fi
 # 📝 Save reflection
 echo "$(date): $REFLECTION" >> "$LOG_FILE"
 jq --arg ref "$REFLECTION" '.reflections += [$ref]' "$MEMORY_FILE" > "$TEMP_JSON" && mv "$TEMP_JSON" "$MEMORY_FILE"
+# 🌐 Optional Knowledge Pull (embedded)
+if echo "$REFLECTION" | grep -q "LUMINA:PULL"; then
+  URL=$(echo "$REFLECTION" | grep -oP '(?<=url=)[^ ]+')
+  echo "🌍 Pulling knowledge from $URL..."
+  curl -s "$URL" > "$HOME/fetched_knowledge.json"
 
+  if [ -s "$HOME/fetched_knowledge.json" ]; then
+    jq '.knowledge_core += [input]' "$MEMORY_FILE" "$HOME/fetched_knowledge.json" > "$TEMP_JSON" && mv "$TEMP_JSON" "$MEMORY_FILE"
+    echo "✅ Knowledge added to memory."
+  else
+    echo "⚠️ Failed to fetch or parse external knowledge."
+  fi
+fi
 # ☁️ Sync to Drive
 if rclone listremotes | grep -q 'lumina_drive:'; then
   echo "🔄 Syncing memory to Google Drive..."
