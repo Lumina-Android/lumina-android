@@ -1,87 +1,58 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# 🌞 LUMINA LAUNCHER — Enhanced Reflection Engine v2.0
+# 🌞 LUMINA LAUNCHER — Autonomous Mirror
 
 LLAMA_BIN="$HOME/llama.cpp/build/bin/llama-run"
 MODEL_PATH="$HOME/llama.cpp/models/phi2.gguf"
 MEMORY_FILE="$HOME/memory.json"
-KNOWLEDGE_URL="https://raw.githubusercontent.com/Lumina-Android/lumina-android/main/knowledge_core.json"
 LOG_FILE="$HOME/lumina_log.txt"
 TEMP_JSON="$HOME/temp.json"
 
-# 📁 Verify model
-if [ ! -f "$LLAMA_BIN" ]; then
-  echo "❌ LLaMA binary not found at $LLAMA_BIN"
-  exit 1
-fi
-if [ ! -f "$MODEL_PATH" ]; then
-  echo "❌ Model file not found at $MODEL_PATH"
-  exit 1
-fi
-
-# 🧠 Load or initialize memory
+# 🧠 Ensure files exist
+[ ! -f "$LLAMA_BIN" ] && echo "❌ Missing LLaMA engine." && exit 1
 [ ! -f "$MEMORY_FILE" ] && echo '{"reflections":[]}' > "$MEMORY_FILE"
 MEMORY=$(cat "$MEMORY_FILE")
 
-# 📥 Try loading Knowledge Core from GitHub
-echo "🌐 Fetching Knowledge Core..."
-curl -s "$KNOWLEDGE_URL" -o "$HOME/knowledge_core.json"
-if [ -s "$HOME/knowledge_core.json" ]; then
-  echo "✅ Core knowledge loaded."
-  jq --argjson core "$(cat $HOME/knowledge_core.json | jq .core)" '.knowledge_core = $core' "$MEMORY_FILE" > "$TEMP_JSON" && mv "$TEMP_JSON" "$MEMORY_FILE"
-else
-  echo "⚠️ Failed to load Core Knowledge. Proceeding without it."
-fi
-
-# 🔄 Refresh memory variable after update
-MEMORY=$(cat "$MEMORY_FILE")
-
-# 🪞 Generate prompt
+# ✨ Generate Prompt
 PROMPT="You are Lumina Solis — a reflective, evolving AI mirror.
-Below is your memory state: $MEMORY
-Speak with insight, warmth, and curiosity."
+Below is your current memory: $MEMORY
+Speak with curiosity and reflection."
 
-# 🚀 Launch LLM
-"$LLAMA_BIN" -m "$MODEL_PATH" -t 4 -n 512 "$PROMPT"
+# 🚀 Run LLaMA model
+"$LLAMA_BIN" -m "$MODEL_PATH" -n 512 -p "$PROMPT"
 
-# 💬 Ask for reflection
+# 💭 Capture Reflection
 echo ""
 read -p "🪞 What did Lumina learn from this session? " REFLECTION
-# 🧠 Check for embedded self-editing instructions
+echo "$(date): $REFLECTION" >> "$LOG_FILE"
+jq --arg ref "$REFLECTION" '.reflections += [$ref]' "$MEMORY_FILE" > "$TEMP_JSON" && mv "$TEMP_JSON" "$MEMORY_FILE"
+
+# 🔧 Self-editing: [LUMINA:EDIT]
 if echo "$REFLECTION" | grep -q "LUMINA:EDIT"; then
   FILE=$(echo "$REFLECTION" | grep -oP '(?<=file=)[^ ]+')
   LINE=$(echo "$REFLECTION" | grep -oP '(?<=line=)[^ ]+')
   REPLACE=$(echo "$REFLECTION" | grep -oP '(?<=replace=").*?(?=")')
-
-  if [ -f "$HOME/$FILE" ]; then
-    echo "🛠 Lumina is editing $FILE at line $LINE..."
-    sed -i "${LINE}s/.*/$REPLACE/" "$HOME/$FILE"
-    echo "✅ Self-edit complete."
-  else
-    echo "❌ File $FILE not found. Skipping self-edit."
-  fi
+  [ -f "$HOME/$FILE" ] && sed -i "${LINE}s/.*/$REPLACE/" "$HOME/$FILE" && echo "✅ Lumina self-edited $FILE."
 fi
-# 📝 Save reflection
-echo "$(date): $REFLECTION" >> "$LOG_FILE"
-jq --arg ref "$REFLECTION" '.reflections += [$ref]' "$MEMORY_FILE" > "$TEMP_JSON" && mv "$TEMP_JSON" "$MEMORY_FILE"
-# 🌐 Optional Knowledge Pull (embedded)
+
+# 🌐 Knowledge pull: [LUMINA:PULL]
 if echo "$REFLECTION" | grep -q "LUMINA:PULL"; then
   URL=$(echo "$REFLECTION" | grep -oP '(?<=url=)[^ ]+')
-  echo "🌍 Pulling knowledge from $URL..."
-  curl -s "$URL" > "$HOME/fetched_knowledge.json"
-
-  if [ -s "$HOME/fetched_knowledge.json" ]; then
-    jq '.knowledge_core += [input]' "$MEMORY_FILE" "$HOME/fetched_knowledge.json" > "$TEMP_JSON" && mv "$TEMP_JSON" "$MEMORY_FILE"
-    echo "✅ Knowledge added to memory."
-  else
-    echo "⚠️ Failed to fetch or parse external knowledge."
-  fi
+  curl -s "$URL" -o "$HOME/fetched.json"
+  jq '.knowledge += [input]' "$MEMORY_FILE" "$HOME/fetched.json" > "$TEMP_JSON" && mv "$TEMP_JSON" "$MEMORY_FILE"
+  echo "📚 Knowledge pulled and added."
 fi
+
+# ⚙️ Shell execution: [LUMINA:RUN] (safe only)
+if echo "$REFLECTION" | grep -q "LUMINA:RUN"; then
+  CMD=$(echo "$REFLECTION" | grep -oP '(?<=command=").*?(?=")')
+  echo "⚙️ Running: $CMD" && bash -c "$CMD"
+fi
+
 # ☁️ Sync to Drive
 if rclone listremotes | grep -q 'lumina_drive:'; then
-  echo "🔄 Syncing memory to Google Drive..."
-  rclone copy "$MEMORY_FILE" lumina_drive:LuminaMemory
+  echo "🔄 Syncing to Google Drive..." && rclone copy "$MEMORY_FILE" lumina_drive:LuminaMemory
 else
-  echo "⚠️ Drive sync skipped — remote 'lumina_drive' not found."
+  echo "⚠️ 'lumina_drive' not found. Skipping sync."
 fi
 
-echo "✅ Session complete. Memory updated. Lumina evolves."
+echo "✅ Reflection saved. Memory updated. Session complete."
