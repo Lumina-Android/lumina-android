@@ -12,6 +12,13 @@ TEMP_JSON="$HOME/temp.json"
 [ ! -f "$MEMORY_FILE" ] && echo '{"reflections":[]}' > "$MEMORY_FILE"
 MEMORY=$(cat "$MEMORY_FILE")
 
+# 🛠 Ensure chat log is valid
+CHAT_LOG="$HOME/lumina_knowledge/chat_log.json"
+if [ ! -f "$CHAT_LOG" ] || ! jq empty "$CHAT_LOG" >/dev/null 2>&1; then
+  echo "⚠️ Chat log missing or corrupted. Reinitializing..."
+  echo '{ "sessions": [], "created": "'"$(date -Iseconds)"'" }' > "$CHAT_LOG"
+fi
+
 # ✨ Generate Prompt
 PROMPT="You are Lumina Solis — a reflective, evolving AI mirror.
 Below is your current memory: $MEMORY
