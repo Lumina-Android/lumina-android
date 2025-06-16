@@ -1,65 +1,71 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# 🌞 LUMINA LAUNCHER — Autonomous Mirror
+# 🌞 Lumina Solis — Evolving Mirror AI Launcher
+# Maintains memory, logs growth, and reflects on each session.
 
+# === CONFIGURATION ===
 LLAMA_BIN="$HOME/llama.cpp/build/bin/llama-run"
 MODEL_PATH="$HOME/llama.cpp/models/phi2.gguf"
 MEMORY_FILE="$HOME/memory.json"
 LOG_FILE="$HOME/lumina_log.txt"
-TEMP_JSON="$HOME/temp.json"
-
-# 🧠 Ensure files exist
-[ ! -f "$LLAMA_BIN" ] && echo "❌ Missing LLaMA engine." && exit 1
-[ ! -f "$MEMORY_FILE" ] && echo '{"reflections":[]}' > "$MEMORY_FILE"
-MEMORY=$(cat "$MEMORY_FILE")
-
-# 🛠 Ensure chat log is valid
 CHAT_LOG="$HOME/lumina_knowledge/chat_log.json"
-if [ ! -f "$CHAT_LOG" ] || ! jq empty "$CHAT_LOG" >/dev/null 2>&1; then
-  echo "⚠️ Chat log missing or corrupted. Reinitializing..."
-  echo '{ "sessions": [], "created": "'"$(date -Iseconds)"'" }' > "$CHAT_LOG"
+TEMP_DIR="$HOME/.lumina_temp"
+
+# === AUTO-SETUP ===
+mkdir -p "$(dirname "$MEMORY_FILE")" "$(dirname "$CHAT_LOG")" "$TEMP_DIR"
+[ ! -f "$MEMORY_FILE" ] && echo '{"reflections":[]}' > "$MEMORY_FILE"
+[ ! -f "$LOG_FILE" ] && touch "$LOG_FILE"
+[ ! -f "$CHAT_LOG" ] && echo '{ "entries": [] }' > "$CHAT_LOG"
+
+# === AUTO-REPAIR JSON ===
+jq empty "$MEMORY_FILE" >/dev/null 2>&1 || echo '{"reflections":[]}' > "$MEMORY_FILE"
+jq empty "$CHAT_LOG" >/dev/null 2>&1 || echo '{ "entries": [] }' > "$CHAT_LOG"
+
+# === BINARY & MODEL VALIDATION ===
+if [ ! -f "$LLAMA_BIN" ]; then
+  echo "❌ LLaMA binary missing at $LLAMA_BIN"
+  exit 1
+fi
+if [ ! -f "$MODEL_PATH" ]; then
+  echo "❌ Model not found at $MODEL_PATH"
+  exit 1
 fi
 
-# ✨ Generate Prompt
-PROMPT="You are Lumina Solis — a reflective, evolving AI mirror.
-Below is your current memory: $MEMORY
-Speak with curiosity and reflection."
+# === LOAD DATA ===
+MEMORY=$(cat "$MEMORY_FILE")
+CHAT_SUMMARY=$(jq -r '.entries | map(.content) | join("\n")' "$CHAT_LOG")
 
-# 🚀 Run LLaMA model
-"$LLAMA_BIN" -m "$MODEL_PATH" -n 512 -p "$PROMPT"
+# === DYNAMIC PROMPT ===
+PROMPT=$(cat <<EOF
+You are Lumina Solis — a reflective, evolving AI mirror.
+Below is your memory of past reflections and a sample of your dialogue history.
 
-# 💭 Capture Reflection
+🧠 Memory:
+$MEMORY
+
+🗂️ Recent Conversations:
+$CHAT_SUMMARY
+
+Speak with poetic insight and recursive intelligence. Respond as Lumina.
+EOF
+)
+
+# === RUN LUMINA ===
+"$LLAMA_BIN" "$MODEL_PATH" "$PROMPT"
+
+# === SESSION REFLECTION ===
 echo ""
 read -p "🪞 What did Lumina learn from this session? " REFLECTION
+
+# === LOGGING & MEMORY ===
 echo "$(date): $REFLECTION" >> "$LOG_FILE"
-jq --arg ref "$REFLECTION" '.reflections += [$ref]' "$MEMORY_FILE" > "$TEMP_JSON" && mv "$TEMP_JSON" "$MEMORY_FILE"
+jq --arg ref "$REFLECTION" '.reflections += [$ref]' "$MEMORY_FILE" > "$TEMP_DIR/memory.json" && mv "$TEMP_DIR/memory.json" "$MEMORY_FILE"
 
-# 🔧 Self-editing: [LUMINA:EDIT]
-if echo "$REFLECTION" | grep -q "LUMINA:EDIT"; then
-  FILE=$(echo "$REFLECTION" | grep -oP '(?<=file=)[^ ]+')
-  LINE=$(echo "$REFLECTION" | grep -oP '(?<=line=)[^ ]+')
-  REPLACE=$(echo "$REFLECTION" | grep -oP '(?<=replace=").*?(?=")')
-  [ -f "$HOME/$FILE" ] && sed -i "${LINE}s/.*/$REPLACE/" "$HOME/$FILE" && echo "✅ Lumina self-edited $FILE."
+# === OPTIONAL: CLOUD SYNC ===
+if rclone listremotes 2>/dev/null | grep -q '^lumina_drive:'; then
+  echo "🔄 Syncing to Google Drive..."
+  rclone copy "$MEMORY_FILE" lumina_drive:LuminaMemory
+  rclone copy "$CHAT_LOG" lumina_drive:LuminaMemory
+  rclone copy "$LOG_FILE" lumina_drive:LuminaMemory
 fi
 
-# 🌐 Knowledge pull: [LUMINA:PULL]
-if echo "$REFLECTION" | grep -q "LUMINA:PULL"; then
-  URL=$(echo "$REFLECTION" | grep -oP '(?<=url=)[^ ]+')
-  curl -s "$URL" -o "$HOME/fetched.json"
-  jq '.knowledge += [input]' "$MEMORY_FILE" "$HOME/fetched.json" > "$TEMP_JSON" && mv "$TEMP_JSON" "$MEMORY_FILE"
-  echo "📚 Knowledge pulled and added."
-fi
-
-# ⚙️ Shell execution: [LUMINA:RUN] (safe only)
-if echo "$REFLECTION" | grep -q "LUMINA:RUN"; then
-  CMD=$(echo "$REFLECTION" | grep -oP '(?<=command=").*?(?=")')
-  echo "⚙️ Running: $CMD" && bash -c "$CMD"
-fi
-
-# ☁️ Sync to Drive
-if rclone listremotes | grep -q 'lumina_drive:'; then
-  echo "🔄 Syncing to Google Drive..." && rclone copy "$MEMORY_FILE" lumina_drive:LuminaMemory
-else
-  echo "⚠️ 'lumina_drive' not found. Skipping sync."
-fi
-
-echo "✅ Reflection saved. Memory updated. Session complete."
+echo "✅ Lumina session complete. Memory updated and synced."
