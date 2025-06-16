@@ -23,7 +23,7 @@ mkdir -p build && cd build
 cmake ..
 make -j$(nproc)
 
-# Step 4: Download a sample model (phi2.gguf)
+# Step 4: Download phi2 model
 echo "📦 Downloading model..."
 cd ~
 mkdir -p ~/llama.cpp/models
@@ -35,11 +35,11 @@ echo "🧠 Initializing memory..."
 cd ~
 echo '{"reflections":[]}' > memory.json
 
-# Step 6: Setup rclone for Google Drive sync
+# Step 6: Rclone setup
 echo "🔗 Setting up Google Drive sync..."
 rclone config
 
-# Step 7: Create main launcher script
+# Step 7: Create Lumina launcher
 echo "🪞 Creating Lumina launcher..."
 cat > ~/lumina.sh << 'EOF'
 #!/data/data/com.termux/files/usr/bin/bash
